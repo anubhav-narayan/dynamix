@@ -7,7 +7,6 @@ from pydub import AudioSegment
 from pydub.scipy_effects import low_pass_filter
 from pydub.scipy_effects import high_pass_filter
 from pydub.playback import play
-from scipy.fftpack import fft
 import numpy as np
 import array
 import sys
@@ -151,7 +150,7 @@ for x in range(0,len(left_chunk)):
 	elif sl==max(m,l,r,sl,sr) and sr==max(m,l,r,sl,sr):
 		side_left_chunk[x]=side_left_chunk[x]-4.5
 		side_right_chunk[x]=side_right_chunk[x]-4.5
-		mid_chunk[x]=mid_chunk[x]-6
+		mid_chunk[x]=mid_chunk[x]-3
 		left_chunk[x]=stereo_sepration_from_mono(4.5,left_chunk[x],right_chunk[x])[0]
 		right_chunk[x]=stereo_sepration_from_mono(4.5,left_chunk[x],right_chunk[x])[1]
 		pass
@@ -201,10 +200,8 @@ for x in range(0,len(left_chunk)):
 	'''
 	Static Separation of Channels
 	'''
-	#left_chunk[x]=stereo_sepration_from_mono(60,left_chunk[x],mid_chunk[x])[0]
-	#right_chunk[x]=stereo_sepration_from_mono(60,right_chunk[x],mid_chunk[x])[0]
-	#side_left_chunk[x]=stereo_sepration_from_mono(60,side_left_chunk[x],left_chunk[x])[0]
-	#side_right_chunk[x]=stereo_sepration_from_mono(60,side_right_chunk[x],right_chunk[x])[0]
+	side_left_chunk[x]=stereo_sepration_from_mono(30,side_left_chunk[x],left_chunk[x])[0]
+	side_right_chunk[x]=stereo_sepration_from_mono(30,side_right_chunk[x],right_chunk[x])[0]
 	pass
 print('Done')
 '''
@@ -219,12 +216,11 @@ for x in range(0,len(left_chunk)):
 	Range Levelling
 	Compression for Channels
 	'''
-	range_level(left_chunk[x],-60,6)
-	range_level(right_chunk[x],-60,6)
-	range_level(mid_chunk[x],-60,12)
-	range_level(side_left_chunk[x],-72,6)
-	range_level(side_right_chunk[x],-72,6)
-	base_expander(mid_chunk[x])
+	range_level(left_chunk[x],-60,24)
+	range_level(right_chunk[x],-60,24)
+	range_level(mid_chunk[x],-72,12)
+	range_level(side_left_chunk[x],-72,48)
+	range_level(side_right_chunk[x],-72,48)
 	channel_final[0]=channel_final[0]+(left_chunk[x])
 	channel_final[1]=channel_final[1]+(right_chunk[x])
 	channel_final[2]=channel_final[2]+(mid_chunk[x])
@@ -233,10 +229,10 @@ for x in range(0,len(left_chunk)):
 	pass
 channel_final[0]=channel_final[2].overlay(channel_final[0]).overlay(channel_final[3],position=13.8889)
 #Master Limiter Left
-channel_final[0]=top_limiter(channel_final[0],-9)
+channel_final[0]=top_limiter(channel_final[0],-30)
 channel_final[1]=channel_final[2].overlay(channel_final[1]).overlay(channel_final[4],position=13.8889)
 #Master Limiter Right
-channel_final[1]=top_limiter(channel_final[1],-9)
-sound_final=AudioSegment.from_mono_audiosegments(channel_final[0].normalize()-6,channel_final[1].normalize()-6).normalize().remove_dc_offset()
+channel_final[1]=top_limiter(channel_final[1],-30)
+sound_final=AudioSegment.from_mono_audiosegments(channel_final[0].normalize(),channel_final[1].normalize()).normalize()
 print('Done')
 play(sound_final)
