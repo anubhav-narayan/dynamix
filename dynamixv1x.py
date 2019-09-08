@@ -100,7 +100,7 @@ Left Side Channel = Left Channel - Right Channel
 Right Side Channel = Right Channel - Left Channel
 '''
 side_channel=[channel[0].overlay(channel[1].invert_phase()),channel[1].overlay(channel[0].invert_phase())]
-side_channel=stereo_sepration_list(6,side_channel)
+side_channel=stereo_sepration_list(60,side_channel)
 print('Done')
 '''
 Process to DynaMIX sample
