@@ -6,6 +6,7 @@
 from pydub import AudioSegment
 from pydub.scipy_effects import low_pass_filter
 from pydub.scipy_effects import high_pass_filter
+from pydub.scipy_effects import band_pass_filter
 from pydub.playback import play
 import numpy as np
 import array
@@ -53,34 +54,65 @@ def range_level(seg,target_dB,threshold):
 		seg=seg+(seg.dBFS-target_dB)+threshold
 		pass
 	return seg
+def range_level_diff(seg,target_dB,threshold_up,threshold_down):
+	'''
+	Leveler
+	'''
+	if (seg.dBFS-target_dB)<-threshold_down:
+		seg=seg+(seg.dBFS-target_dB)-threshold_down
+		pass
+	elif (seg.dBFS-target_dB)>threshold_up:
+		seg=seg+(seg.dBFS-target_dB)+threshold_up
+		pass
+	return seg
 def flat_level(seg,target_dB):
 	'''
 	Leveler
 	'''
 	seg=seg+(seg.max_dBFS-target_dB)
 	return seg
-def top_limiter(seg,top_dB=-20):
-	'''
-	Limiter
-	'''
-	if seg.max_dBFS>top_dB:
-		seg=seg-(seg.max_dBFS-top_dB)
-		pass
-	return seg
-def soft_top_limiter(seg,top_dB=-20):
-	'''
-	Limiter
-	'''
-	if seg.dBFS>top_dB:
-		seg=seg-(seg.dBFS-top_dB)
-		pass
-	return seg
-def base_expander(seg,base_dB=-96):
+def base_expander(seg,base_dB=-96,ratio=1):
 	'''
 	Delimiter
 	'''
 	if seg.max_dBFS<base_dB:
-		seg=seg+(base_dB-seg.max_dBFS)
+		seg=seg+((base_dB-seg.max_dBFS)/ratio)
+		pass
+	return seg
+def top_compressor(seg,top_dB=-20,ratio=1):
+	'''
+	Limiter
+	'''
+	if seg.max_dBFS>top_dB:
+		seg=seg-((seg.max_dBFS-top_dB)/ratio)
+		pass
+	return seg
+def dynamix_ranging(seg,target_dB,top_dB=-6,base_dB=-96,ratio_com=1,ratio_exp=1):
+	if seg.max_dBFS>top_dB:
+		seg=top_compressor(seg,top_dB,ratio_com)
+		pass
+	elif seg.max_dBFS<base_dB:
+		seg=base_expander(seg,base_dB,ratio_exp)
+		pass
+	else:
+		seg=range_level_diff(seg,target_dB,-top_dB,-base_dB+1.5)
+		pass
+	return seg
+def cheap_eq(seg,focus_freq,bandwidth=100,mode="peak",gain_dB=0,order=5):
+	'''
+	Cheap EQ in PyDub
+	'''
+	if gain_dB>=0:
+		if mode=="peak":
+			sec=band_pass_filter(seg,focus_freq-bandwidth/2,focus_freq+bandwidth/2,order=order)
+			pass
+		if mode=="low_shelf":
+			sec=low_pass_filter(seg,focus_freq,order=order)
+			pass
+		if mode=="high_shelf":
+			sec=low_pass_filter(seg,focus_freq,order=order)
+			pass
+		seg=seg.overlay(sec-(6-gain_dB))
 		pass
 	return seg
 '''
@@ -99,20 +131,21 @@ Left Side Channel = Left Channel - Right Channel
 Right Side Channel = Right Channel - Left Channel
 '''
 side_channel=[channel[0].overlay(channel[1].invert_phase()),channel[1].overlay(channel[0].invert_phase())]
-side_channel=stereo_sepration_list(60,side_channel)
+side_channel=stereo_sepration_list(48,side_channel)
 print('Done')
 '''
 Process to DynaMIX sample
-1 DynaMIX sample = 256*44.1 samples [at 44.1kHz]
-				 = 256*48 samples [at 48kHz]
-		 		 = 256*96 samples [at 96kHz]
+PyDub Sample Time = 500ms
+1 DynaMIX sample = 500*44.1 samples [at 44.1kHz]
+				 = 500*48 samples [at 48kHz]
+		 		 = 500*96 samples [at 96kHz]
 '''
 print('Processing DynaMIX Stereo')
-left_chunk=make_chunks(channel[0],256)
-right_chunk=make_chunks(channel[1],256)
-mid_chunk=make_chunks(mid_channel,256)
-side_left_chunk=make_chunks(side_channel[0],256)
-side_right_chunk=make_chunks(side_channel[1],256)
+left_chunk=make_chunks(channel[0],500)
+right_chunk=make_chunks(channel[1],500)
+mid_chunk=make_chunks(mid_channel,500)
+side_left_chunk=make_chunks(side_channel[0],500)
+side_right_chunk=make_chunks(side_channel[1],500)
 '''
 TODO
 DynaMIX Sample Processing:-
@@ -131,77 +164,48 @@ for x in range(0,len(left_chunk)):
 	m=mid_chunk[x].max_dBFS
 	sl=side_left_chunk[x].max_dBFS
 	sr=side_right_chunk[x].max_dBFS
+	side_left_chunk[x]=side_left_chunk[x]-6
+	side_right_chunk[x]=side_right_chunk[x]-6
+	mid_chunk[x]=mid_chunk[x]-3
 	if m==l==r==sl==sr:
-		side_left_chunk[x]=side_left_chunk[x]-6
-		side_right_chunk[x]=side_right_chunk[x]-6
-		low_pass_filter(side_right_chunk[x],7000,order=2)
-		low_pass_filter(side_left_chunk[x],7000,order=2)
-		mid_chunk[x]=mid_chunk[x]-3
-		left_chunk[x]=stereo_sepration_from_mono(6,left_chunk[x],right_chunk[x])[0]
-		right_chunk[x]=stereo_sepration_from_mono(6,left_chunk[x],right_chunk[x])[1]
+		left_chunk[x]=stereo_sepration_from_mono(48,left_chunk[x],right_chunk[x])[0]
+		right_chunk[x]=stereo_sepration_from_mono(48,left_chunk[x],right_chunk[x])[1]
 		pass
 	elif m==max(m,l,r,sl,sr):
-		mid_chunk[x]=mid_chunk[x]-3
-		side_left_chunk[x]=side_left_chunk[x]-6
-		side_right_chunk[x]=side_right_chunk[x]-6
-		left_chunk[x]=stereo_sepration_from_mono(3,left_chunk[x],right_chunk[x])[0]
-		right_chunk[x]=stereo_sepration_from_mono(3,left_chunk[x],right_chunk[x])[1]
+		left_chunk[x]=stereo_sepration_from_mono(48,left_chunk[x],right_chunk[x])[0]
+		right_chunk[x]=stereo_sepration_from_mono(48,left_chunk[x],right_chunk[x])[1]
 		pass
 	elif sl==max(m,l,r,sl,sr) and sr==max(m,l,r,sl,sr):
-		side_left_chunk[x]=side_left_chunk[x]-4.5
-		side_right_chunk[x]=side_right_chunk[x]-4.5
-		mid_chunk[x]=mid_chunk[x]-3
-		left_chunk[x]=stereo_sepration_from_mono(4.5,left_chunk[x],right_chunk[x])[0]
-		right_chunk[x]=stereo_sepration_from_mono(4.5,left_chunk[x],right_chunk[x])[1]
+		left_chunk[x]=stereo_sepration_from_mono(48,left_chunk[x],right_chunk[x])[0]
+		right_chunk[x]=stereo_sepration_from_mono(48,left_chunk[x],right_chunk[x])[1]
 		pass
 	elif sl==max(m,l,r,sl,sr):
-		side_left_chunk[x]=side_left_chunk[x]-4.5
-		side_right_chunk[x]=side_right_chunk[x]-6
-		low_pass_filter(side_right_chunk[x],7000,order=2)
-		mid_chunk[x]=mid_chunk[x]-3
-		left_chunk[x]=stereo_sepration_from_mono(6,left_chunk[x],right_chunk[x])[0]
-		right_chunk[x]=stereo_sepration_from_mono(9,left_chunk[x],right_chunk[x])[1]
+		left_chunk[x]=stereo_sepration_from_mono(72,left_chunk[x],right_chunk[x])[0]
+		right_chunk[x]=stereo_sepration_from_mono(48,left_chunk[x],right_chunk[x])[1]
 		pass
 	elif sr==max(m,l,r,sl,sr):
-		side_left_chunk[x]=side_left_chunk[x]-6
-		side_right_chunk[x]=side_right_chunk[x]-4.5
-		low_pass_filter(side_left_chunk[x],7000,order=2)
-		mid_chunk[x]=mid_chunk[x]-3
-		left_chunk[x]=stereo_sepration_from_mono(9,left_chunk[x],right_chunk[x])[0]
-		right_chunk[x]=stereo_sepration_from_mono(6,left_chunk[x],right_chunk[x])[1]
+		left_chunk[x]=stereo_sepration_from_mono(48,left_chunk[x],right_chunk[x])[0]
+		right_chunk[x]=stereo_sepration_from_mono(72,left_chunk[x],right_chunk[x])[1]
 		pass
 	elif l==max(m,l,r,sl,sr) and r==max(m,l,r,sl,sr):
-		side_left_chunk[x]=side_left_chunk[x]-6
-		side_right_chunk[x]=side_right_chunk[x]-6
-		low_pass_filter(side_right_chunk[x],7000,order=3)
-		low_pass_filter(side_left_chunk[x],7000,order=3)
-		mid_chunk[x]=mid_chunk[x]-3
-		left_chunk[x]=stereo_sepration_from_mono(10.5,left_chunk[x],right_chunk[x])[0]
-		right_chunk[x]=stereo_sepration_from_mono(10.5,left_chunk[x],right_chunk[x])[1]
+		left_chunk[x]=stereo_sepration_from_mono(48,left_chunk[x],right_chunk[x])[0]
+		right_chunk[x]=stereo_sepration_from_mono(48,left_chunk[x],right_chunk[x])[1]
 		pass
 	elif l==max(m,l,r,sl,sr):
-		side_left_chunk[x]=side_left_chunk[x]-6
-		side_right_chunk[x]=side_right_chunk[x]-4.5
-		low_pass_filter(side_right_chunk[x],7000,order=5)
-		low_pass_filter(side_left_chunk[x],7000,order=2)
-		mid_chunk[x]=mid_chunk[x]-3
-		left_chunk[x]=stereo_sepration_from_mono(10.5,left_chunk[x],right_chunk[x])[0]
-		right_chunk[x]=stereo_sepration_from_mono(9,left_chunk[x],right_chunk[x])[1]
+		left_chunk[x]=stereo_sepration_from_mono(72,left_chunk[x],right_chunk[x])[0]
+		right_chunk[x]=stereo_sepration_from_mono(48,left_chunk[x],right_chunk[x])[1]
 		pass
 	elif r==max(m,l,r,sl,sr):
-		side_right_chunk[x]=side_right_chunk[x]-6
-		side_left_chunk[x]=side_left_chunk[x]-4.5
-		low_pass_filter(side_right_chunk[x],7000,order=2)
-		low_pass_filter(side_left_chunk[x],7000,order=5)
-		mid_chunk[x]=mid_chunk[x]-3
-		left_chunk[x]=stereo_sepration_from_mono(9,left_chunk[x],right_chunk[x])[0]
-		right_chunk[x]=stereo_sepration_from_mono(10.5,left_chunk[x],right_chunk[x])[1]
+		left_chunk[x]=stereo_sepration_from_mono(48,left_chunk[x],right_chunk[x])[0]
+		right_chunk[x]=stereo_sepration_from_mono(72,left_chunk[x],right_chunk[x])[1]
 		pass
 	'''
 	Static Separation of Channels
 	'''
-	side_left_chunk[x]=stereo_sepration_from_mono(30,side_left_chunk[x],left_chunk[x])[0]
-	side_right_chunk[x]=stereo_sepration_from_mono(30,side_right_chunk[x],right_chunk[x])[0]
+	left_chunk[x]=stereo_sepration_from_mono(72,left_chunk[x],mid_chunk[x])[0]
+	right_chunk[x]=stereo_sepration_from_mono(72,right_chunk[x],mid_chunk[x])[0]
+	side_left_chunk[x]=stereo_sepration_from_mono(72,side_left_chunk[x],left_chunk[x])[0]
+	side_right_chunk[x]=stereo_sepration_from_mono(72,side_right_chunk[x],right_chunk[x])[0]
 	pass
 print('Done')
 '''
@@ -216,11 +220,14 @@ for x in range(0,len(left_chunk)):
 	Range Levelling
 	Compression for Channels
 	'''
-	range_level(left_chunk[x],-60,24)
-	range_level(right_chunk[x],-60,24)
-	range_level(mid_chunk[x],-72,12)
-	range_level(side_left_chunk[x],-72,48)
-	range_level(side_right_chunk[x],-72,48)
+	left_chunk[x]=dynamix_ranging(left_chunk[x],-15,top_dB=-6,ratio_com=1,ratio_exp=1)
+	right_chunk[x]=dynamix_ranging(right_chunk[x],-15,top_dB=-6,ratio_com=1,ratio_exp=1)
+	mid_chunk[x]=dynamix_ranging(mid_chunk[x],-15,top_dB=-12,ratio_com=1,ratio_exp=1)
+	side_left_chunk[x]=dynamix_ranging(side_left_chunk[x],-15,top_dB=-6,base_dB=-72,ratio_com=1,ratio_exp=2)
+	side_right_chunk[x]=dynamix_ranging(side_right_chunk[x],-15,top_dB=-6,base_dB=-72,ratio_com=1,ratio_exp=2)
+	mid_chunk[x]=cheap_eq(mid_chunk[x],250,mode="low_shelf",gain_dB=6,order=4)
+	side_left_chunk[x]=cheap_eq(side_left_chunk[x],11000,bandwidth=1000,gain_dB=0,order=3)
+	side_right_chunk[x]=cheap_eq(side_right_chunk[x],11000,bandwidth=1000,gain_dB=0,order=3)
 	channel_final[0]=channel_final[0]+(left_chunk[x])
 	channel_final[1]=channel_final[1]+(right_chunk[x])
 	channel_final[2]=channel_final[2]+(mid_chunk[x])
@@ -229,10 +236,10 @@ for x in range(0,len(left_chunk)):
 	pass
 channel_final[0]=channel_final[2].overlay(channel_final[0]).overlay(channel_final[3],position=13.8889)
 #Master Limiter Left
-channel_final[0]=top_limiter(channel_final[0],-30)
+channel_final[0]=top_compressor(channel_final[0],-20,1)
 channel_final[1]=channel_final[2].overlay(channel_final[1]).overlay(channel_final[4],position=13.8889)
 #Master Limiter Right
-channel_final[1]=top_limiter(channel_final[1],-30)
-sound_final=AudioSegment.from_mono_audiosegments(channel_final[0].normalize(),channel_final[1].normalize()).normalize()
+channel_final[1]=top_compressor(channel_final[1],-20,1)
+sound_final=AudioSegment.from_mono_audiosegments(channel_final[0],channel_final[1]).normalize()
 print('Done')
 play(sound_final)
