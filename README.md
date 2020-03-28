@@ -1,13 +1,18 @@
 # DynaMIX Stereo
-### Dynamic Multiple Instance Gain and Relative Loudness Analysis Stereo
+Dynamic Multiple Instance Gain and Relative Loudness Analysis Stereo
 
 To achieve Diffused Sound Field over Stereo.
 This is a Audio Manipulation Script made using **PyDub**. 
 
-The file dynamixv1 is the quick playback utility, you can run the the script in Python3 and follow the format
+### Introduction
+This is a set of Impulse Responses developed using the <a href="https://github.com/jiaaro/pydub">PyDub</a> library and aims to achieve Stereo Enhancement over standard Stereo recording.
 
-<code>python3 dynamixv1.py "audiofile.format"</code>
-  
- Prefered formats are WAV,MP3,OGG.
+### PulseEffects Dist
+This is the PulseEffects Convolver Distro of DynaMIX, you can find PulseEffects <a href="https://github.com/wwmm/pulseeffects">here!</a>
 
-The file dynamixv1x.py is the export utility.
+### Installation
+Download and run install.sh
+```bash
+$ ./install.sh
+```
+Then go to PulseEffects->Convolver and select the Impulse Response Files.
