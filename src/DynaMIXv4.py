@@ -122,7 +122,7 @@ def dynamix_nr_2(channel,chunk_size=0.6,threshold=-40,gain_dB=10):
 		ret_channel[1]=ret_channel[1]+side_chunk[x]
 		pass
 	ret_channel=to_lr(ret_channel)
-	return [peak_limiter(ret_channel[0],ratio=2),peak_limiter(ret_channel[1],ratio=2)]
+	return [peak_limiter(ret_channel[0],ratio=4),peak_limiter(ret_channel[1],ratio=4)]
 	pass
 def dynamix_side_level(channel,chunk_size=10):
 	'''
@@ -163,7 +163,7 @@ def dynamix_mid_level(channel,chunk_size=10):
 	return ret_channel[0].overlay(ret_channel[1])
 	pass
 def dynamix_particle(channel):
-	return [channel[0].overlay((channel[1]-9.5).invert_phase(),position=0.25),channel[1].overlay((channel[0]-9.5).invert_phase(),position=0.25),channel[0].overlay((channel[1]-11.5).invert_phase(),position=0.4999),channel[1].overlay((channel[0]-11.5).invert_phase(),position=0.4999),channel[0].overlay((channel[1]-12).invert_phase(),position=0.6874),channel[1].overlay((channel[0]-12).invert_phase(),position=0.6874)]
+	return [channel[0].overlay((channel[1]-9.5).invert_phase(),position=0.25),channel[1].overlay((channel[0]-9.5).invert_phase(),position=0.25),channel[0].overlay((channel[1]-11.5).invert_phase(),position=0.4999),channel[1].overlay((channel[0]-11.5).invert_phase(),position=0.4999),channel[0].overlay((channel[1]).invert_phase(),position=0.6874),channel[1].overlay((channel[0]).invert_phase(),position=0.6874)]
 	pass	
 def cheap_eq(seg,focus_freq,bandwidth=100,mode="peak",gain_dB=0,order=2):
 	'''
@@ -233,6 +233,7 @@ Right Side Channel = Right Channel - Left Channel
 rear_channel=dynamix_side_level(channel)
 rear_channel=dynamix_nr(rear_channel)
 side_channel=dynamix_particle(rear_channel)
+
 print('Done')
 '''
 Process to DynaMIX sample
@@ -311,25 +312,25 @@ rear_channel[0]=low_pass_filter(rear_channel[0],7592,order=2)
 rear_channel[1]=low_pass_filter(rear_channel[1],7592,order=2)
 #Combination
 reflect_level=-6
-f_amb_fact=[(0.08575/0.343),(0.1/0.343)]
-s_amb_fact=(np.sqrt(4**2+4**2)/0.343)
-r_amb_fact=30+(np.sqrt(2**2+7**2)/0.343)
+f_amb_fact=(2/0.343)
+s_amb_fact=(2.085/0.343)
+r_amb_fact=40+(np.sqrt(2**2+7**2)/0.343)
 channel[0]=(mid_channel-5.75)
-channel[0]=channel[0].overlay(ex_channel[0]-12.5,position=f_amb_fact[0])
-channel[0]=channel[0].overlay(ex_channel[2]-9.5,position=f_amb_fact[1])
+channel[0]=channel[0].overlay(ex_channel[0]-12.5,position=f_amb_fact+0.25)
+channel[0]=channel[0].overlay(ex_channel[2]-9.5,position=f_amb_fact+0.4999)
 channel[0]=channel[0].overlay(ex_channel[4],position=s_amb_fact+0.6874)
-channel[0]=channel[0].overlay(side_channel[4]+reflect_level,position=30+s_amb_fact+0.6874)
+channel[0]=channel[0].overlay(side_channel[4]+reflect_level,position=40+s_amb_fact+0.6874)
 channel[0]=channel[0].overlay(side_channel[2]-9.5+reflect_level,position=r_amb_fact+0.8749)
 channel[0]=channel[0].overlay(side_channel[0]-12.5+reflect_level,position=r_amb_fact+1.2082)
 channel[0]=channel[0].overlay(rear_channel[0]-5.75+reflect_level,position=r_amb_fact+1.3748)
 channel[1]=(mid_channel-5.75)
-channel[1]=channel[1].overlay(ex_channel[1]-12.5,position=f_amb_fact[0])
-channel[1]=channel[1].overlay(ex_channel[2]-9.5,position=f_amb_fact[1])
+channel[1]=channel[1].overlay(ex_channel[1]-12.5,position=f_amb_fact+0.25)
+channel[1]=channel[1].overlay(ex_channel[2]-9.5,position=f_amb_fact+0.4999)
 channel[1]=channel[1].overlay(ex_channel[5],position=s_amb_fact+0.6874)
-channel[1]=channel[1].overlay(side_channel[5]+reflect_level,position=20+s_amb_fact+0.6874)
+channel[1]=channel[1].overlay(side_channel[5]+reflect_level,position=30+s_amb_fact+0.6874)
 channel[1]=channel[1].overlay(side_channel[3]-9.5+reflect_level,position=r_amb_fact+0.8749)
 channel[1]=channel[1].overlay(side_channel[1]-12.5+reflect_level,position=r_amb_fact+1.2082)
 channel[1]=channel[1].overlay(rear_channel[1]-5.75+reflect_level,position=r_amb_fact+1.3748)
 channel=dynamix_nr_2(channel)
 sound_final=AudioSegment.from_mono_audiosegments(peak_limiter(channel[0]),peak_limiter(channel[1]))
-sound_final.export("DynaMIX(48kHz).irs",format="wav")
+sound_final.export("DynaMIX(48kHz)2.wav",format="wav")
